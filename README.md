@@ -23,3 +23,7 @@
 
 - Added SortedList classes to display items in a list order and provide notification of changes to the list.
 - Added the SortedListAdapterCallback class that can bind a sorted list to a RecyclerView.Adapterclass.
+
+#### 5. Android Support Library, revision 22.2.1 (July 2015)
+
+- Added convenience methods to the RecyclerView for batch insertion of items.
