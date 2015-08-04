@@ -17,3 +17,9 @@
 - Deprecated the classgetChildPosition() and findViewHolderForPosition() methods in theRecyclerView class.
 - Deprecated the getPosition() method in the RecyclerView.ViewHolder class.
 - Deprecated the getViewPosition() method in the RecyclerView.LayoutParams class.
+
+#### 4. Android Support Library, revision 22.1.0 (April 2015)
+**Changes for v7 recyclerview library:**
+
+- Added SortedList classes to display items in a list order and provide notification of changes to the list.
+- Added the SortedListAdapterCallback class that can bind a sorted list to a RecyclerView.Adapterclass.
