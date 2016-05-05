@@ -46,3 +46,38 @@ ItemAnimator animator = recyclerView.getItemAnimator();
 	   ((SimpleItemAnimator) animator).setSupportsChangeAnimations(false);
 	}
     ```
+
+#### 6. Android Support Library, revision 23.1.1 (November 2015)
+
+**Changes for v7 recyclerview library:**
+
+- Fixed a crash that occurs when you perform a swipe-to-dismiss action that the ItemTouchHelper utility class provides, and then add an item. ([Issue 190500](http://b.android.com/190500 "Issue 190500"))
+
+#### 7. Android Support Library, revision 23.2.0 (February 2016)
+
+**Changes for v7 recyclerview library:**
+
+- RecyclerView now has an opt-in feature called AutoMeasure which allows RecyclerView.LayoutManager to easily wrap content or handle various measurement specifications provided by the parent of theRecyclerView. It supports all existing animation capabilities of the RecyclerView.
+- If you have a custom RecyclerView.LayoutManager, call setAutoMeasureEnabled(true) to start using the new AutoMeasure API. All built-in RecyclerView.LayoutManager objects enable auto-measure by default.
+- RecyclerView.LayoutManager no longer ignores some RecyclerView.LayoutParams settings, such asMATCH_PARENT in the scroll direction.
+Note: These lifted restrictions may cause unexpected behavior in your layouts. Make sure you specify the correct layout parameters.
+- When updating a RecyclerView.ViewHolder with payload information, DefaultItemAnimator now disables change animations.
+- You can now modify the ItemTouchHelper escape velocity to control swipe sensitivity. To make it easier or harder to swipe, override getSwipeEscapeVelocity(float defaultValue) and modify defaultValue.
+
+#### 8. Android Support Library, revision 23.2.1 (March 2016)
+
+**Changes for v7 recyclerview library:**
+
+- Fixed bugs related to various measure-spec methods. (Issue 201856)
+- Reduced the lockdown period in which RecyclerView does not allow adapter changes while calculating a layout or scroll. (Issue 202046)
+- Fixed a crash when calling notifyItemChanged() on an item that is out of view. (Issue 202136)
+- Fixed a crash that occurs when RecyclerView.LayoutManager adds and removes a view in the same measurement pass. (Issue 193958)
+
+#### 9. Android Support Library, revision 23.3.0 (April 2016)
+
+**Changes for v7 recyclerview library:**
+
+- Fixed a bug where RecyclerView would not invoke scroll callbacks if the range of visible items shrank. (SimpleOnItemTouchListenerIssue 200987)
+- Fixed a bug where RecyclerView would freeze if it was in linear layout, was weighted, and contained images. (Issue 203276)
+- Fixed a crash in OrientationHelper.getStartAfterPadding(). (Issue 180521)
+- Fixed a crash with usages of android:nestedScrollingEnabled. (Issue 197932)

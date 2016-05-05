@@ -21,6 +21,7 @@ import android.support.annotation.VisibleForTesting;
 import android.support.v4.util.ArrayMap;
 import android.support.v4.util.LongSparseArray;
 import android.support.v4.util.Pools;
+import android.view.View;
 
 import static android.support.v7.widget.RecyclerView.ViewHolder;
 import static android.support.v7.widget.RecyclerView.ItemAnimator.ItemHolderInfo;
@@ -73,22 +74,51 @@ class ViewInfoStore {
         record.flags |= FLAG_PRE;
     }
 
+    boolean isDisappearing(ViewHolder holder) {
+        final InfoRecord record = mLayoutHolderMap.get(holder);
+        return record != null && ((record.flags & FLAG_DISAPPEARED) != 0);
+    }
+
     /**
      * Finds the ItemHolderInfo for the given ViewHolder in preLayout list and removes it.
+     *
      * @param vh The ViewHolder whose information is being queried
      * @return The ItemHolderInfo for the given ViewHolder or null if it does not exist
      */
     @Nullable
     ItemHolderInfo popFromPreLayout(ViewHolder vh) {
+        return popFromLayoutStep(vh, FLAG_PRE);
+    }
+
+    /**
+     * Finds the ItemHolderInfo for the given ViewHolder in postLayout list and removes it.
+     *
+     * @param vh The ViewHolder whose information is being queried
+     * @return The ItemHolderInfo for the given ViewHolder or null if it does not exist
+     */
+    @Nullable
+    ItemHolderInfo popFromPostLayout(ViewHolder vh) {
+        return popFromLayoutStep(vh, FLAG_POST);
+    }
+
+    private ItemHolderInfo popFromLayoutStep(ViewHolder vh, int flag) {
         int index = mLayoutHolderMap.indexOfKey(vh);
         if (index < 0) {
             return null;
         }
         final InfoRecord record = mLayoutHolderMap.valueAt(index);
-        if (record != null && (record.flags & FLAG_PRE) != 0) {
-            record.flags &= ~FLAG_PRE;
-            final ItemHolderInfo info = record.preInfo;
-            if (record.flags == 0) {
+        if (record != null && (record.flags & flag) != 0) {
+            record.flags &= ~flag;
+            final ItemHolderInfo info;
+            if (flag == FLAG_PRE) {
+                info = record.preInfo;
+            } else if (flag == FLAG_POST) {
+                info = record.postInfo;
+            } else {
+                throw new IllegalArgumentException("Must provide flag PRE or POST");
+            }
+            // if not pre-post flag is left, clear.
+            if ((record.flags & (FLAG_PRE | FLAG_POST)) == 0) {
                 mLayoutHolderMap.removeAt(index);
                 InfoRecord.recycle(record);
             }
@@ -198,7 +228,13 @@ class ViewInfoStore {
                 callback.unused(viewHolder);
             } else if ((record.flags & FLAG_DISAPPEARED) != 0) {
                 // Set as "disappeared" by the LayoutManager (addDisappearingView)
-                callback.processDisappeared(viewHolder, record.preInfo, record.postInfo);
+                if (record.preInfo == null) {
+                    // similar to appear disappear but happened between different layout passes.
+                    // this can happen when the layout manager is using auto-measure
+                    callback.unused(viewHolder);
+                } else {
+                    callback.processDisappeared(viewHolder, record.preInfo, record.postInfo);
+                }
             } else if ((record.flags & FLAG_APPEAR_PRE_AND_POST) == FLAG_APPEAR_PRE_AND_POST) {
                 // Appeared in the layout but not in the adapter (e.g. entered the viewport)
                 callback.processAppeared(viewHolder, record.preInfo, record.postInfo);
@@ -241,8 +277,12 @@ class ViewInfoStore {
         InfoRecord.drainCache();
     }
 
+    public void onViewDetached(ViewHolder viewHolder) {
+        removeFromDisappearedInLayout(viewHolder);
+    }
+
     interface ProcessCallback {
-        void processDisappeared(ViewHolder viewHolder, ItemHolderInfo preInfo,
+        void processDisappeared(ViewHolder viewHolder, @NonNull ItemHolderInfo preInfo,
                 @Nullable ItemHolderInfo postInfo);
         void processAppeared(ViewHolder viewHolder, @Nullable ItemHolderInfo preInfo,
                 ItemHolderInfo postInfo);

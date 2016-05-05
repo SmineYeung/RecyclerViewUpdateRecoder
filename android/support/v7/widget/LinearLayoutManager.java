@@ -16,6 +16,8 @@
 
 package android.support.v7.widget;
 
+import static android.support.v7.widget.RecyclerView.NO_POSITION;
+
 import android.content.Context;
 import android.graphics.PointF;
 import android.os.Parcel;
@@ -23,17 +25,15 @@ import android.os.Parcelable;
 import android.support.v4.view.ViewCompat;
 import android.support.v4.view.accessibility.AccessibilityEventCompat;
 import android.support.v4.view.accessibility.AccessibilityRecordCompat;
-import android.util.AttributeSet;
+import android.support.v7.widget.RecyclerView.LayoutParams;
 import android.support.v7.widget.helper.ItemTouchHelper;
+import android.util.AttributeSet;
 import android.util.Log;
 import android.view.View;
 import android.view.ViewGroup;
 import android.view.accessibility.AccessibilityEvent;
-import android.support.v7.widget.RecyclerView.LayoutParams;
 
 import java.util.List;
-
-import static android.support.v7.widget.RecyclerView.NO_POSITION;
 
 /**
  * A {@link android.support.v7.widget.RecyclerView.LayoutManager} implementation which provides
@@ -58,7 +58,7 @@ public class LinearLayoutManager extends RecyclerView.LayoutManager implements
      * than this factor times the total space of the list. If layout is vertical, total space is the
      * height minus padding, if layout is horizontal, total space is the width minus padding.
      */
-    private static final float MAX_SCROLL_FACTOR = 0.33f;
+    private static final float MAX_SCROLL_FACTOR = 1 / 3f;
 
 
     /**
@@ -154,6 +154,7 @@ public class LinearLayoutManager extends RecyclerView.LayoutManager implements
     public LinearLayoutManager(Context context, int orientation, boolean reverseLayout) {
         setOrientation(orientation);
         setReverseLayout(reverseLayout);
+        setAutoMeasureEnabled(true);
     }
 
     /**
@@ -170,6 +171,7 @@ public class LinearLayoutManager extends RecyclerView.LayoutManager implements
         setOrientation(properties.orientation);
         setReverseLayout(properties.reverseLayout);
         setStackFromEnd(properties.stackFromEnd);
+        setAutoMeasureEnabled(true);
     }
 
     /**
@@ -527,8 +529,18 @@ public class LinearLayoutManager extends RecyclerView.LayoutManager implements
         }
         int startOffset;
         int endOffset;
-        onAnchorReady(recycler, state, mAnchorInfo);
+        final int firstLayoutDirection;
+        if (mAnchorInfo.mLayoutFromEnd) {
+            firstLayoutDirection = mShouldReverseLayout ? LayoutState.ITEM_DIRECTION_TAIL :
+                    LayoutState.ITEM_DIRECTION_HEAD;
+        } else {
+            firstLayoutDirection = mShouldReverseLayout ? LayoutState.ITEM_DIRECTION_HEAD :
+                    LayoutState.ITEM_DIRECTION_TAIL;
+        }
+
+        onAnchorReady(recycler, state, mAnchorInfo, firstLayoutDirection);
         detachAndScrapAttachedViews(recycler);
+        mLayoutState.mInfinite = resolveIsInfinite();
         mLayoutState.mIsPreLayout = state.isPreLayout();
         if (mAnchorInfo.mLayoutFromEnd) {
             // fill towards start
@@ -621,13 +633,14 @@ public class LinearLayoutManager extends RecyclerView.LayoutManager implements
     /**
      * Method called when Anchor position is decided. Extending class can setup accordingly or
      * even update anchor info if necessary.
-     *
-     * @param recycler
-     * @param state
-     * @param anchorInfo Simple data structure to keep anchor point information for the next layout
+     * @param recycler The recycler for the layout
+     * @param state The layout state
+     * @param anchorInfo The mutable POJO that keeps the position and offset.
+     * @param firstLayoutItemDirection The direction of the first layout filling in terms of adapter
+     *                                 indices.
      */
     void onAnchorReady(RecyclerView.Recycler recycler, RecyclerView.State state,
-                       AnchorInfo anchorInfo) {
+                       AnchorInfo anchorInfo, int firstLayoutItemDirection) {
     }
 
     /**
@@ -1115,9 +1128,11 @@ public class LinearLayoutManager extends RecyclerView.LayoutManager implements
 
     private void updateLayoutState(int layoutDirection, int requiredSpace,
             boolean canUseExistingSpace, RecyclerView.State state) {
+        // If parent provides a hint, don't measure unlimited.
+        mLayoutState.mInfinite = resolveIsInfinite();
         mLayoutState.mExtra = getExtraLayoutSpace(state);
         mLayoutState.mLayoutDirection = layoutDirection;
-        int fastScrollSpace;
+        int scrollingOffset;
         if (layoutDirection == LayoutState.LAYOUT_END) {
             mLayoutState.mExtra += mOrientationHelper.getEndPadding();
             // get the first child in the direction we are going
@@ -1128,7 +1143,7 @@ public class LinearLayoutManager extends RecyclerView.LayoutManager implements
             mLayoutState.mCurrentPosition = getPosition(child) + mLayoutState.mItemDirection;
             mLayoutState.mOffset = mOrientationHelper.getDecoratedEnd(child);
             // calculate how much we can scroll without adding new children (independent of layout)
-            fastScrollSpace = mOrientationHelper.getDecoratedEnd(child)
+            scrollingOffset = mOrientationHelper.getDecoratedEnd(child)
                     - mOrientationHelper.getEndAfterPadding();
 
         } else {
@@ -1138,14 +1153,19 @@ public class LinearLayoutManager extends RecyclerView.LayoutManager implements
                     : LayoutState.ITEM_DIRECTION_HEAD;
             mLayoutState.mCurrentPosition = getPosition(child) + mLayoutState.mItemDirection;
             mLayoutState.mOffset = mOrientationHelper.getDecoratedStart(child);
-            fastScrollSpace = -mOrientationHelper.getDecoratedStart(child)
+            scrollingOffset = -mOrientationHelper.getDecoratedStart(child)
                     + mOrientationHelper.getStartAfterPadding();
         }
         mLayoutState.mAvailable = requiredSpace;
         if (canUseExistingSpace) {
-            mLayoutState.mAvailable -= fastScrollSpace;
+            mLayoutState.mAvailable -= scrollingOffset;
         }
-        mLayoutState.mScrollingOffset = fastScrollSpace;
+        mLayoutState.mScrollingOffset = scrollingOffset;
+    }
+
+    boolean resolveIsInfinite() {
+        return mOrientationHelper.getMode() == View.MeasureSpec.UNSPECIFIED
+                && mOrientationHelper.getEnd() == 0;
     }
 
     int scrollBy(int dy, RecyclerView.Recycler recycler, RecyclerView.State state) {
@@ -1157,8 +1177,8 @@ public class LinearLayoutManager extends RecyclerView.LayoutManager implements
         final int layoutDirection = dy > 0 ? LayoutState.LAYOUT_END : LayoutState.LAYOUT_START;
         final int absDy = Math.abs(dy);
         updateLayoutState(layoutDirection, absDy, true, state);
-        final int freeScroll = mLayoutState.mScrollingOffset;
-        final int consumed = freeScroll + fill(recycler, mLayoutState, state, false);
+        final int consumed = mLayoutState.mScrollingOffset
+                + fill(recycler, mLayoutState, state, false);
         if (consumed < 0) {
             if (DEBUG) {
                 Log.d(TAG, "Don't have any more elements to scroll");
@@ -1294,7 +1314,7 @@ public class LinearLayoutManager extends RecyclerView.LayoutManager implements
      * @see android.support.v7.widget.LinearLayoutManager.LayoutState#mLayoutDirection
      */
     private void recycleByLayoutState(RecyclerView.Recycler recycler, LayoutState layoutState) {
-        if (!layoutState.mRecycle) {
+        if (!layoutState.mRecycle || layoutState.mInfinite) {
             return;
         }
         if (layoutState.mLayoutDirection == LayoutState.LAYOUT_START) {
@@ -1328,7 +1348,7 @@ public class LinearLayoutManager extends RecyclerView.LayoutManager implements
         }
         int remainingSpace = layoutState.mAvailable + layoutState.mExtra;
         LayoutChunkResult layoutChunkResult = new LayoutChunkResult();
-        while (remainingSpace > 0 && layoutState.hasMore(state)) {
+        while ((layoutState.mInfinite || remainingSpace > 0) && layoutState.hasMore(state)) {
             layoutChunkResult.resetInternal();
             layoutChunk(recycler, state, layoutState, layoutChunkResult);
             if (layoutChunkResult.mFinished) {
@@ -1439,6 +1459,13 @@ public class LinearLayoutManager extends RecyclerView.LayoutManager implements
         result.mFocusable = view.isFocusable();
     }
 
+    @Override
+    boolean shouldMeasureTwice() {
+        return getHeightMode() != View.MeasureSpec.EXACTLY
+                && getWidthMode() != View.MeasureSpec.EXACTLY
+                && hasFlexibleChildInBothOrientations();
+    }
+
     /**
      * Converts a focusDirection to orientation.
      *
@@ -1449,7 +1476,7 @@ public class LinearLayoutManager extends RecyclerView.LayoutManager implements
      * @return {@link LayoutState#LAYOUT_START} or {@link LayoutState#LAYOUT_END} if focus direction
      * is applicable to current state, {@link LayoutState#INVALID_LAYOUT} otherwise.
      */
-    private int convertFocusDirectionToLayoutDirection(int focusDirection) {
+    int convertFocusDirectionToLayoutDirection(int focusDirection) {
         switch (focusDirection) {
             case View.FOCUS_BACKWARD:
                 return LayoutState.LAYOUT_START;
@@ -1931,7 +1958,8 @@ public class LinearLayoutManager extends RecyclerView.LayoutManager implements
         boolean mIsPreLayout = false;
 
         /**
-         * The most recent {@link #scrollBy(int, RecyclerView.Recycler, RecyclerView.State)} amount.
+         * The most recent {@link #scrollBy(int, RecyclerView.Recycler, RecyclerView.State)}
+         * amount.
          */
         int mLastScrollDelta;
 
@@ -1940,6 +1968,11 @@ public class LinearLayoutManager extends RecyclerView.LayoutManager implements
          * will only return views from this list and return null if it cannot find an item.
          */
         List<RecyclerView.ViewHolder> mScrapList = null;
+
+        /**
+         * Used when there is no limit in how many views can be laid out.
+         */
+        boolean mInfinite;
 
         /**
          * @return true if there are more items in the data adapter

@@ -8,6 +8,8 @@ import android.support.v7.widget.RecyclerView.ItemAnimator.ItemHolderInfo;
 import android.util.Log;
 import android.view.View;
 
+import java.util.List;
+
 /**
  * A wrapper class for ItemAnimator that records View bounds and decides whether it should run
  * move, change, add or remove animations. This class also replicates the original ItemAnimator
@@ -18,8 +20,7 @@ import android.view.View;
  * extend this class, you can override {@link #obtainHolderInfo()} method to provide your own info
  * class that extends {@link ItemHolderInfo}.
  */
-abstract public class
-        SimpleItemAnimator extends RecyclerView.ItemAnimator {
+abstract public class SimpleItemAnimator extends RecyclerView.ItemAnimator {
 
     private static final boolean DEBUG = false;
 
@@ -58,8 +59,16 @@ abstract public class
         mSupportsChangeAnimations = supportsChangeAnimations;
     }
 
+    /**
+     * {@inheritDoc}
+     *
+     * @return True if change animations are not supported or the ViewHolder is invalid,
+     * false otherwise.
+     *
+     * @see #setSupportsChangeAnimations(boolean)
+     */
     @Override
-    public boolean canReuseUpdatedViewHolder(RecyclerView.ViewHolder viewHolder) {
+    public boolean canReuseUpdatedViewHolder(@NonNull RecyclerView.ViewHolder viewHolder) {
         return !mSupportsChangeAnimations || viewHolder.isInvalid();
     }
 
@@ -217,8 +226,12 @@ abstract public class
      * {@link Adapter#notifyItemRangeChanged(int, int)}.
      * <p>
      * Implementers can choose whether and how to animate changes, but must always call
-     * {@link #dispatchChangeFinished(ViewHolder, boolean)} for each non-null ViewHolder,
+     * {@link #dispatchChangeFinished(ViewHolder, boolean)} for each non-null distinct ViewHolder,
      * either immediately (if no animation will occur) or after the animation actually finishes.
+     * If the {@code oldHolder} is the same ViewHolder as the {@code newHolder}, you must call
+     * {@link #dispatchChangeFinished(ViewHolder, boolean)} once and only once. In that case, the
+     * second parameter of {@code dispatchChangeFinished} is ignored.
+     * <p>
      * The return value indicates whether an animation has been set up and whether the
      * ItemAnimator's {@link #runPendingAnimations()} method should be called at the
      * next opportunity. This mechanism allows ItemAnimator to set up individual animations
