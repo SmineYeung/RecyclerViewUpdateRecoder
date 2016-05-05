@@ -552,6 +552,13 @@ public class StaggeredGridLayoutManager extends RecyclerView.LayoutManager {
         final AnchorInfo anchorInfo = mAnchorInfo;
         anchorInfo.reset();
 
+        if (mPendingSavedState != null || mPendingScrollPosition != NO_POSITION) {
+            if (state.getItemCount() == 0) {
+                removeAndRecycleAllViews(recycler);
+                return;
+            }
+        }
+
         if (mPendingSavedState != null) {
             applyPendingSavedState(anchorInfo);
         } else {
@@ -1033,7 +1040,7 @@ public class StaggeredGridLayoutManager extends RecyclerView.LayoutManager {
         final int mode = View.MeasureSpec.getMode(spec);
         if (mode == View.MeasureSpec.AT_MOST || mode == View.MeasureSpec.EXACTLY) {
             return View.MeasureSpec.makeMeasureSpec(
-                    View.MeasureSpec.getSize(spec) - startInset - endInset, mode);
+                    Math.max(0, View.MeasureSpec.getSize(spec) - startInset - endInset), mode);
         }
         return spec;
     }
@@ -1337,7 +1344,8 @@ public class StaggeredGridLayoutManager extends RecyclerView.LayoutManager {
     }
 
     @Override
-    public void onItemsUpdated(RecyclerView recyclerView, int positionStart, int itemCount) {
+    public void onItemsUpdated(RecyclerView recyclerView, int positionStart, int itemCount,
+            Object payload) {
         handleUpdate(positionStart, itemCount, AdapterHelper.UpdateOp.UPDATE);
     }
 
@@ -2668,7 +2676,10 @@ public class StaggeredGridLayoutManager extends RecyclerView.LayoutManager {
         }
     }
 
-    static class SavedState implements Parcelable {
+    /**
+     * @hide
+     */
+    public static class SavedState implements Parcelable {
 
         int mAnchorPosition;
         int mVisibleAnchorPosition; // Replacement for span info when spans are invalidated

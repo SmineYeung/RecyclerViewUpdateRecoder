@@ -24,6 +24,25 @@
 - Added SortedList classes to display items in a list order and provide notification of changes to the list.
 - Added the SortedListAdapterCallback class that can bind a sorted list to a RecyclerView.Adapterclass.
 
-#### 5. Android Support Library, revision 22.2.1 (July 2015)
+#### 5. Android Support Library, revision 23.1.0 (October 2015)
 
-- Added convenience methods to the RecyclerView for batch insertion of items.
+**Changes for v7 recyclerview library:**
+
+- Added an improved animation API to the ItemAnimator class for better customizations:
+  - Change animations no longer enforce two copies of the ViewHolder object, which enables item content animations. Also, the ItemAnimator object decides whether it wants to reuse the same ViewHolderobject or create a new one.
+  - The new information record API gives the ItemAnimator class the flexibility to collect data at the correct point in the layout lifecycle. This information is later passed into the animate callbacks.
+- Provided an easy transition plan for this backward-incompatible API change:
+  - If you’ve previously extended the ItemAnimator class, you can change your base class to SimpleItemAnimator and your code should work as before. The SimpleItemAnimator class provides the old API by wrapping the new API.
+  - Some methods were removed from the ItemAnimator class. The following code will no longer compile:
+    
+    ```java
+  recyclerView.getItemAnimator().setSupportsChangeAnimations(false)
+    ```
+    You can replace it with:
+
+    ```java
+ItemAnimator animator = recyclerView.getItemAnimator();
+	if (animator instanceof SimpleItemAnimator) {
+	   ((SimpleItemAnimator) animator).setSupportsChangeAnimations(false);
+	}
+    ```
