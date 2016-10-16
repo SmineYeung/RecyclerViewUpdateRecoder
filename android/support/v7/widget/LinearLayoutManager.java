@@ -10,7 +10,7 @@
  * Unless required by applicable law or agreed to in writing, software
  * distributed under the License is distributed on an "AS IS" BASIS,
  * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
- * See the License for the specific languag`e governing permissions and
+ * See the License for the specific language governing permissions and
  * limitations under the License.
  */
 
@@ -40,7 +40,7 @@ import java.util.List;
  * similar functionality to {@link android.widget.ListView}.
  */
 public class LinearLayoutManager extends RecyclerView.LayoutManager implements
-        ItemTouchHelper.ViewDropHandler {
+        ItemTouchHelper.ViewDropHandler, RecyclerView.SmoothScroller.ScrollVectorProvider {
 
     private static final String TAG = "LinearLayoutManager";
 
@@ -137,6 +137,11 @@ public class LinearLayoutManager extends RecyclerView.LayoutManager implements
     final AnchorInfo mAnchorInfo = new AnchorInfo();
 
     /**
+     * Stashed to avoid allocation, currently only used in #fill()
+     */
+    private final LayoutChunkResult mLayoutChunkResult = new LayoutChunkResult();
+
+    /**
      * Creates a vertical LinearLayoutManager
      *
      * @param context Current context, will be used to access resources.
@@ -199,7 +204,7 @@ public class LinearLayoutManager extends RecyclerView.LayoutManager implements
      * RecyclerView.
      * <p>
      * If you are using a {@link RecyclerView.RecycledViewPool}, it might be a good idea to set
-     * this flag to <code>true</code> so that views will be avilable to other RecyclerViews
+     * this flag to <code>true</code> so that views will be available to other RecyclerViews
      * immediately.
      * <p>
      * Note that, setting this flag will result in a performance drop if RecyclerView
@@ -304,7 +309,7 @@ public class LinearLayoutManager extends RecyclerView.LayoutManager implements
     }
 
     /**
-     * Returns the current orientaion of the layout.
+     * Returns the current orientation of the layout.
      *
      * @return Current orientation,  either {@link #HORIZONTAL} or {@link #VERTICAL}
      * @see #setOrientation(int)
@@ -424,17 +429,12 @@ public class LinearLayoutManager extends RecyclerView.LayoutManager implements
     public void smoothScrollToPosition(RecyclerView recyclerView, RecyclerView.State state,
             int position) {
         LinearSmoothScroller linearSmoothScroller =
-                new LinearSmoothScroller(recyclerView.getContext()) {
-                    @Override
-                    public PointF computeScrollVectorForPosition(int targetPosition) {
-                        return LinearLayoutManager.this
-                                .computeScrollVectorForPosition(targetPosition);
-                    }
-                };
+                new LinearSmoothScroller(recyclerView.getContext());
         linearSmoothScroller.setTargetPosition(position);
         startSmoothScroll(linearSmoothScroller);
     }
 
+    @Override
     public PointF computeScrollVectorForPosition(int targetPosition) {
         if (getChildCount() == 0) {
             return null;
@@ -478,10 +478,14 @@ public class LinearLayoutManager extends RecyclerView.LayoutManager implements
         // resolve layout direction
         resolveShouldLayoutReverse();
 
-        mAnchorInfo.reset();
-        mAnchorInfo.mLayoutFromEnd = mShouldReverseLayout ^ mStackFromEnd;
-        // calculate anchor position and coordinate
-        updateAnchorInfoForLayout(recycler, state, mAnchorInfo);
+        if (!mAnchorInfo.mValid || mPendingScrollPosition != NO_POSITION ||
+                mPendingSavedState != null) {
+            mAnchorInfo.reset();
+            mAnchorInfo.mLayoutFromEnd = mShouldReverseLayout ^ mStackFromEnd;
+            // calculate anchor position and coordinate
+            updateAnchorInfoForLayout(recycler, state, mAnchorInfo);
+            mAnchorInfo.mValid = true;
+        }
         if (DEBUG) {
             Log.d(TAG, "Anchor info:" + mAnchorInfo);
         }
@@ -619,15 +623,23 @@ public class LinearLayoutManager extends RecyclerView.LayoutManager implements
         }
         layoutForPredictiveAnimations(recycler, state, startOffset, endOffset);
         if (!state.isPreLayout()) {
-            mPendingScrollPosition = NO_POSITION;
-            mPendingScrollPositionOffset = INVALID_OFFSET;
             mOrientationHelper.onLayoutComplete();
+        } else {
+            mAnchorInfo.reset();
         }
         mLastStackFromEnd = mStackFromEnd;
-        mPendingSavedState = null; // we don't need this anymore
         if (DEBUG) {
             validateChildOrder();
         }
+    }
+
+    @Override
+    public void onLayoutCompleted(RecyclerView.State state) {
+        super.onLayoutCompleted(state);
+        mPendingSavedState = null; // we don't need this anymore
+        mPendingScrollPosition = NO_POSITION;
+        mPendingScrollPositionOffset = INVALID_OFFSET;
+        mAnchorInfo.reset();
     }
 
     /**
@@ -914,7 +926,7 @@ public class LinearLayoutManager extends RecyclerView.LayoutManager implements
         mLayoutState.mCurrentPosition = itemPosition;
         mLayoutState.mLayoutDirection = LayoutState.LAYOUT_END;
         mLayoutState.mOffset = offset;
-        mLayoutState.mScrollingOffset = LayoutState.SCOLLING_OFFSET_NaN;
+        mLayoutState.mScrollingOffset = LayoutState.SCROLLING_OFFSET_NaN;
     }
 
     private void updateLayoutStateToFillStart(AnchorInfo anchorInfo) {
@@ -928,7 +940,7 @@ public class LinearLayoutManager extends RecyclerView.LayoutManager implements
                 LayoutState.ITEM_DIRECTION_HEAD;
         mLayoutState.mLayoutDirection = LayoutState.LAYOUT_START;
         mLayoutState.mOffset = offset;
-        mLayoutState.mScrollingOffset = LayoutState.SCOLLING_OFFSET_NaN;
+        mLayoutState.mScrollingOffset = LayoutState.SCROLLING_OFFSET_NaN;
 
     }
 
@@ -1227,6 +1239,8 @@ public class LinearLayoutManager extends RecyclerView.LayoutManager implements
 
     /**
      * Recycles views that went out of bounds after scrolling towards the end of the layout.
+     * <p>
+     * Checks both layout position and visible position to guarantee that the view is not visible.
      *
      * @param recycler Recycler instance of {@link android.support.v7.widget.RecyclerView}
      * @param dt       This can be used to add additional padding to the visible area. This is used
@@ -1247,7 +1261,9 @@ public class LinearLayoutManager extends RecyclerView.LayoutManager implements
         if (mShouldReverseLayout) {
             for (int i = childCount - 1; i >= 0; i--) {
                 View child = getChildAt(i);
-                if (mOrientationHelper.getDecoratedEnd(child) > limit) {// stop here
+                if (mOrientationHelper.getDecoratedEnd(child) > limit
+                        || mOrientationHelper.getTransformedEndWithDecoration(child) > limit) {
+                    // stop here
                     recycleChildren(recycler, childCount - 1, i);
                     return;
                 }
@@ -1255,7 +1271,9 @@ public class LinearLayoutManager extends RecyclerView.LayoutManager implements
         } else {
             for (int i = 0; i < childCount; i++) {
                 View child = getChildAt(i);
-                if (mOrientationHelper.getDecoratedEnd(child) > limit) {// stop here
+                if (mOrientationHelper.getDecoratedEnd(child) > limit
+                        || mOrientationHelper.getTransformedEndWithDecoration(child) > limit) {
+                    // stop here
                     recycleChildren(recycler, 0, i);
                     return;
                 }
@@ -1266,6 +1284,8 @@ public class LinearLayoutManager extends RecyclerView.LayoutManager implements
 
     /**
      * Recycles views that went out of bounds after scrolling towards the start of the layout.
+     * <p>
+     * Checks both layout position and visible position to guarantee that the view is not visible.
      *
      * @param recycler Recycler instance of {@link android.support.v7.widget.RecyclerView}
      * @param dt       This can be used to add additional padding to the visible area. This is used
@@ -1285,7 +1305,9 @@ public class LinearLayoutManager extends RecyclerView.LayoutManager implements
         if (mShouldReverseLayout) {
             for (int i = 0; i < childCount; i++) {
                 View child = getChildAt(i);
-                if (mOrientationHelper.getDecoratedStart(child) < limit) {// stop here
+                if (mOrientationHelper.getDecoratedStart(child) < limit
+                        || mOrientationHelper.getTransformedStartWithDecoration(child) < limit) {
+                    // stop here
                     recycleChildren(recycler, 0, i);
                     return;
                 }
@@ -1293,7 +1315,9 @@ public class LinearLayoutManager extends RecyclerView.LayoutManager implements
         } else {
             for (int i = childCount - 1; i >= 0; i--) {
                 View child = getChildAt(i);
-                if (mOrientationHelper.getDecoratedStart(child) < limit) {// stop here
+                if (mOrientationHelper.getDecoratedStart(child) < limit
+                        || mOrientationHelper.getTransformedStartWithDecoration(child) < limit) {
+                    // stop here
                     recycleChildren(recycler, childCount - 1, i);
                     return;
                 }
@@ -1333,13 +1357,13 @@ public class LinearLayoutManager extends RecyclerView.LayoutManager implements
      * @param layoutState     Configuration on how we should fill out the available space.
      * @param state           Context passed by the RecyclerView to control scroll steps.
      * @param stopOnFocusable If true, filling stops in the first focusable new child
-     * @return Number of pixels that it added. Useful for scoll functions.
+     * @return Number of pixels that it added. Useful for scroll functions.
      */
     int fill(RecyclerView.Recycler recycler, LayoutState layoutState,
             RecyclerView.State state, boolean stopOnFocusable) {
         // max offset we should set is mFastScroll + available
         final int start = layoutState.mAvailable;
-        if (layoutState.mScrollingOffset != LayoutState.SCOLLING_OFFSET_NaN) {
+        if (layoutState.mScrollingOffset != LayoutState.SCROLLING_OFFSET_NaN) {
             // TODO ugly bug fix. should not happen
             if (layoutState.mAvailable < 0) {
                 layoutState.mScrollingOffset += layoutState.mAvailable;
@@ -1347,7 +1371,7 @@ public class LinearLayoutManager extends RecyclerView.LayoutManager implements
             recycleByLayoutState(recycler, layoutState);
         }
         int remainingSpace = layoutState.mAvailable + layoutState.mExtra;
-        LayoutChunkResult layoutChunkResult = new LayoutChunkResult();
+        LayoutChunkResult layoutChunkResult = mLayoutChunkResult;
         while ((layoutState.mInfinite || remainingSpace > 0) && layoutState.hasMore(state)) {
             layoutChunkResult.resetInternal();
             layoutChunk(recycler, state, layoutState, layoutChunkResult);
@@ -1368,7 +1392,7 @@ public class LinearLayoutManager extends RecyclerView.LayoutManager implements
                 remainingSpace -= layoutChunkResult.mConsumed;
             }
 
-            if (layoutState.mScrollingOffset != LayoutState.SCOLLING_OFFSET_NaN) {
+            if (layoutState.mScrollingOffset != LayoutState.SCROLLING_OFFSET_NaN) {
                 layoutState.mScrollingOffset += layoutChunkResult.mConsumed;
                 if (layoutState.mAvailable < 0) {
                     layoutState.mScrollingOffset += layoutState.mAvailable;
@@ -1445,8 +1469,7 @@ public class LinearLayoutManager extends RecyclerView.LayoutManager implements
         }
         // We calculate everything with View's bounding box (which includes decor and margins)
         // To calculate correct layout position, we subtract margins.
-        layoutDecorated(view, left + params.leftMargin, top + params.topMargin,
-                right - params.rightMargin, bottom - params.bottomMargin);
+        layoutDecoratedWithMargins(view, left, top, right, bottom);
         if (DEBUG) {
             Log.d(TAG, "laid out child at position " + getPosition(view) + ", with l:"
                     + (left + params.leftMargin) + ", t:" + (top + params.topMargin) + ", r:"
@@ -1479,9 +1502,21 @@ public class LinearLayoutManager extends RecyclerView.LayoutManager implements
     int convertFocusDirectionToLayoutDirection(int focusDirection) {
         switch (focusDirection) {
             case View.FOCUS_BACKWARD:
-                return LayoutState.LAYOUT_START;
+                if (mOrientation == VERTICAL) {
+                    return LayoutState.LAYOUT_START;
+                } else if (isLayoutRTL()) {
+                    return LayoutState.LAYOUT_END;
+                } else {
+                    return LayoutState.LAYOUT_START;
+                }
             case View.FOCUS_FORWARD:
-                return LayoutState.LAYOUT_END;
+                if (mOrientation == VERTICAL) {
+                    return LayoutState.LAYOUT_END;
+                } else if (isLayoutRTL()) {
+                    return LayoutState.LAYOUT_START;
+                } else {
+                    return LayoutState.LAYOUT_END;
+                }
             case View.FOCUS_UP:
                 return mOrientation == VERTICAL ? LayoutState.LAYOUT_START
                         : LayoutState.INVALID_LAYOUT;
@@ -1766,7 +1801,7 @@ public class LinearLayoutManager extends RecyclerView.LayoutManager implements
         ensureLayoutState();
         final int maxScroll = (int) (MAX_SCROLL_FACTOR * mOrientationHelper.getTotalSpace());
         updateLayoutState(layoutDir, maxScroll, false, state);
-        mLayoutState.mScrollingOffset = LayoutState.SCOLLING_OFFSET_NaN;
+        mLayoutState.mScrollingOffset = LayoutState.SCROLLING_OFFSET_NaN;
         mLayoutState.mRecycle = false;
         fill(recycler, mLayoutState, state, true);
         final View nextFocus;
@@ -1890,7 +1925,7 @@ public class LinearLayoutManager extends RecyclerView.LayoutManager implements
      */
     static class LayoutState {
 
-        final static String TAG = "LinearLayoutManager#LayoutState";
+        final static String TAG = "LLM#LayoutState";
 
         final static int LAYOUT_START = -1;
 
@@ -1902,7 +1937,7 @@ public class LinearLayoutManager extends RecyclerView.LayoutManager implements
 
         final static int ITEM_DIRECTION_TAIL = 1;
 
-        final static int SCOLLING_OFFSET_NaN = Integer.MIN_VALUE;
+        final static int SCROLLING_OFFSET_NaN = Integer.MIN_VALUE;
 
         /**
          * We may not want to recycle children in some cases (e.g. layout)
@@ -2136,10 +2171,17 @@ public class LinearLayoutManager extends RecyclerView.LayoutManager implements
         int mPosition;
         int mCoordinate;
         boolean mLayoutFromEnd;
+        boolean mValid;
+
+        AnchorInfo() {
+            reset();
+        }
+
         void reset() {
             mPosition = NO_POSITION;
             mCoordinate = INVALID_OFFSET;
             mLayoutFromEnd = false;
+            mValid = false;
         }
 
         /**
@@ -2158,6 +2200,7 @@ public class LinearLayoutManager extends RecyclerView.LayoutManager implements
                     "mPosition=" + mPosition +
                     ", mCoordinate=" + mCoordinate +
                     ", mLayoutFromEnd=" + mLayoutFromEnd +
+                    ", mValid=" + mValid +
                     '}';
         }
 
