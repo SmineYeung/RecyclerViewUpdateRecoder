@@ -89,9 +89,16 @@ Note: These lifted restrictions may cause unexpected behavior in your layouts. M
 - The new DiffUtil class can calculate the difference between two collections, and can dispatch a list of update operations that are suitable to be consumed by a RecyclerView.Adapter.
 - RecyclerView.OnFlingListener has been added to support custom behavior in response to flings. The SnapHelper class provides an implementation specifically for snapping child views, and the LinearSnapHelper class extends this implementation to provide center-aligned snapping behavior similar to ViewPager.
 
-
 #### 11. Android Support Library, revision 25.0.0 (October 2016)
 
 **New APIs:**
 
 - android.v7.widget.RecyclerView.DividerItemDecoration class provides a base implementation for vertical or horizontal dividers between items.
+
+#### 12. Android Support Library, revision 25.0.1 (November 2016)
+
+**Fixed issues:**
+
+- RecyclerView crashes during prefetch if layout manager is null.
+- RecyclerView crashes when recycling view holders. (AOSP issue [225762](https://code.google.com/p/android/issues/detail?id=225762))
+- RecyclerView: Rendering problems in Android Studio. (AOSP issue [225753](https://code.google.com/p/android/issues/detail?id=225753))
