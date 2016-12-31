@@ -102,3 +102,31 @@ Note: These lifted restrictions may cause unexpected behavior in your layouts. M
 - RecyclerView crashes during prefetch if layout manager is null.
 - RecyclerView crashes when recycling view holders. (AOSP issue [225762](https://code.google.com/p/android/issues/detail?id=225762))
 - RecyclerView: Rendering problems in Android Studio. (AOSP issue [225753](https://code.google.com/p/android/issues/detail?id=225753))
+
+#### 13. Android Support Library, revision 25.1.0 (December 2016)
+
+**Important Changes:**
+
+- Clients of nested RecyclerView widgets (for example, vertical scrolling list of horizontal scrolling lists) can get significant performance benefits by hinting the inner RecyclerView widgets’ layout managers how many items to prepare before being scrolled on screen. Call LinearLayoutManager.setInitialPrefetchItemCount(N), where N is the number of views visible per inner item. For example, if your inner, horizontal lists show a minimum of three and a half item views at a time, you can improve performance by calling LinearLayoutManager.setInitialPrefetchItemCount(4). Doing so allows RecyclerView to create all relevant views early, while the outer RecyclerView is scrolling, which significantly reduces the amount of stuttering during scrolls.
+
+**New and Modified APIs:**
+
+- RecyclerView RecyclerView item prefetching improvements:
+  - Nested RecyclerView prefetch enables prefetching of content from a RecyclerView within another scrolling RecyclerView, with API to control how much prefetching is done:
+    - LinearLayoutManager.setInitialPrefetchItemCount()
+    - LinearLayoutManager.getInitialPrefetchItemCount()
+  - APIs added for custom LayoutManager objects to implement to enable prefetching during scrolls and flings
+    - RecyclerView.LayoutManager.LayoutPrefetchRegistry()
+    - RecyclerView.LayoutManager.collectAdjacentPrefetchPositions()
+    - RecyclerView.LayoutManager.collectInitialPrefetchPositions()
+    
+**Fixed issues:**
+
+- Added focus recovery mechanism to RecyclerView. This also fixed support pref fragments broken focus when using DPAD navigation such as on Android TV devices.
+- RecyclerView failed tests on Leanback
+- RecyclerView crashes when recycling view holders (AOSP issue [225762](https://code.google.com/p/android/issues/detail?id=225762))
+- Animating RecyclerView items detach inner RecyclerViews, prevent future prefetches
+- Attached RecyclerView items can't be nested-prefetched
+- Prefetch data for nested RecyclerView items is discarded during first layout
+- RecyclerView prefetch fails if two drag events arrive at same position
+- RecyclerView should speculatively layout while RenderThread is rendering
