@@ -119,7 +119,8 @@ Note: These lifted restrictions may cause unexpected behavior in your layouts. M
     - RecyclerView.LayoutManager.LayoutPrefetchRegistry()
     - RecyclerView.LayoutManager.collectAdjacentPrefetchPositions()
     - RecyclerView.LayoutManager.collectInitialPrefetchPositions()
-    
+  - Improvements to prefetching to do only as much create/bind work as possible in the time between frames
+
 **Fixed issues:**
 
 - Added focus recovery mechanism to RecyclerView. This also fixed support pref fragments broken focus when using DPAD navigation such as on Android TV devices.
