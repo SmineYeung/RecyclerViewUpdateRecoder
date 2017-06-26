@@ -140,3 +140,10 @@ Note: These lifted restrictions may cause unexpected behavior in your layouts. M
 - RecyclerViewFocusRecoveryTest is failing on API 15
 - RecyclerViewLayoutTest.triggerFocusSearchInOnRecycledCallback() crashes on API 15
 - RecyclerView crashes when recycling some view holders
+
+#### 15. Revision 25.2.0 (February 2017)
+
+**Fixed issues**
+
+- RecyclerViewLayoutTest.triggerFocusSearchInOnRecycledCallback() crashing
+- RecyclerView crashes when recycling view holders (AOSP issue 225762)
