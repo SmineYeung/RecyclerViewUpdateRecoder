@@ -36,12 +36,14 @@
   - Some methods were removed from the ItemAnimator class. The following code will no longer compile:
     
     ```java
-  recyclerView.getItemAnimator().setSupportsChangeAnimations(false)
+    recyclerView.getItemAnimator().setSupportsChangeAnimations(false)
     ```
+    
     You can replace it with:
+    
 
     ```java
-ItemAnimator animator = recyclerView.getItemAnimator();
+    ItemAnimator animator = recyclerView.getItemAnimator();
 	if (animator instanceof SimpleItemAnimator) {
 	   ((SimpleItemAnimator) animator).setSupportsChangeAnimations(false);
 	}
