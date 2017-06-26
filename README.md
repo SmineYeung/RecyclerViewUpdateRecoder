@@ -131,3 +131,12 @@ Note: These lifted restrictions may cause unexpected behavior in your layouts. M
 - Prefetch data for nested RecyclerView items is discarded during first layout
 - RecyclerView prefetch fails if two drag events arrive at same position
 - RecyclerView should speculatively layout while RenderThread is rendering
+
+#### 14. Revision 25.1.1 (January 2017)
+
+**Fixed issues**
+
+- RecyclerView with StaggeredGridLayoutManager crashes with full-span items (AOSP issue 230295)
+- RecyclerViewFocusRecoveryTest is failing on API 15
+- RecyclerViewLayoutTest.triggerFocusSearchInOnRecycledCallback() crashes on API 15
+- RecyclerView crashes when recycling some view holders
