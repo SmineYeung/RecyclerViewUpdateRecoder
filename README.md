@@ -158,3 +158,9 @@ Note: These lifted restrictions may cause unexpected behavior in your layouts. M
 **Fixed issues**
 
 - RecyclerView prefetch does not properly handle a RecyclerView that is attached but not onscreen
+
+#### 17. Revision 26.0.0 Beta 1 (May 2017)
+
+**Bug fixes**
+
+- RecyclerView.isComputingLayout() should return true during prefetch
