@@ -147,3 +147,14 @@ Note: These lifted restrictions may cause unexpected behavior in your layouts. M
 
 - RecyclerViewLayoutTest.triggerFocusSearchInOnRecycledCallback() crashing
 - RecyclerView crashes when recycling view holders (AOSP issue 225762)
+
+#### 16. Revision 25.3.0 (March 2017)
+
+**Deprecations**
+
+- v7.recyclerview
+  - LinearLayoutManager.getInitialItemPrefetchCount() has been renamed to LinearLayoutManager.getInitialPrefetchItemCount(). The old name is still supported but will be removed in a future release.
+
+**Fixed issues**
+
+- RecyclerView prefetch does not properly handle a RecyclerView that is attached but not onscreen
